@@ -1,0 +1,1 @@
+const IbaxBridge = artifacts.require("IbaxBridge");
