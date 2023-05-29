@@ -1,5 +1,5 @@
-const IbaxBridge = artifacts.require("IbaxBridge");
+const Bridge = artifacts.require("Bridge");
 
 module.exports = function (deployer) {
-    deployer.deploy(IbaxBridge, [], 0);
+    deployer.deploy(Bridge, '', [], 1);
 };

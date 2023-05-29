@@ -1,0 +1,1 @@
+const Bridge = artifacts.require("Bridge");
