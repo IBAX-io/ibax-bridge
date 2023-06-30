@@ -1,6 +1,6 @@
 # Ethereum bridge contract
 
-Bridge contracts allow you to build cross-chain applications between Ibax and multiple Ethereum networks
+Bridge contracts allow you to build cross-chain applications between IBAX Network and multiple Ethereum VM networks
 
 ----
 
