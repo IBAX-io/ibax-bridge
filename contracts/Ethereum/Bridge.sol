@@ -4,10 +4,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-pragma solidity ^0.8.6;
+pragma solidity =0.8.17;
 
-contract Bridge is Ownable, Pausable {
+contract Bridge is Ownable, Pausable , ReentrancyGuard{
     using SafeERC20 for IERC20;
 
     event Deposit(address indexed sender, address token, uint256 amount);
@@ -43,7 +44,7 @@ contract Bridge is Ownable, Pausable {
         address _WETH,
         address[] memory _signers,
         uint256 _required
-    ) {
+    ) payable ReentrancyGuard(){
         require(isContract(_WETH), "not a contract");
         require(_signers.length > 0, "signers required");
         require(
@@ -73,7 +74,7 @@ contract Bridge is Ownable, Pausable {
         _unpause();
     }
 
-    function depositETH() external payable whenNotPaused {
+    function depositETH() external payable checkAmount(msg.value) whenNotPaused {
         uint256 ETHAmount = msg.value;
 
         if (msg.value != 0) {
@@ -93,9 +94,9 @@ contract Bridge is Ownable, Pausable {
     }
 
     function deposit(address token, uint256 amount)
-    external
-    checkAmount(amount)
-    whenNotPaused
+        external
+        checkAmount(amount)
+        whenNotPaused
     {
         require(isContract(token), "not a contract");
         require(
@@ -115,7 +116,7 @@ contract Bridge is Ownable, Pausable {
         bytes[] memory signatures,
         string memory txhash,
         uint256 amount
-    ) external checkAmount(amount) checkSigLen(signatures) whenNotPaused {
+    ) external nonReentrant() checkAmount(amount) checkSigLen(signatures) whenNotPaused {
         require(isContract(token), "not a contract");
         require(!txHashs[txhash], "already withdraw");
         require(signaturesUnique(signatures), "duplicate signatures");
@@ -196,9 +197,9 @@ contract Bridge is Ownable, Pausable {
     }
 
     function verify(bytes[] memory signatures, string memory message)
-    private
-    view
-    returns (bool)
+        private
+        view
+        returns (bool)
     {
         bytes32 messageHash = getMessageHash(message);
         bytes32 ethSignedMessageHash = getEthSignedMessageHash(messageHash);
@@ -215,31 +216,31 @@ contract Bridge is Ownable, Pausable {
     }
 
     function getMessageHash(string memory message)
-    private
-    pure
-    returns (bytes32)
+        private
+        pure
+        returns (bytes32)
     {
         return keccak256(abi.encodePacked(message));
     }
 
     function getEthSignedMessageHash(bytes32 messageHash)
-    private
-    pure
-    returns (bytes32)
+        private
+        pure
+        returns (bytes32)
     {
         return
-        keccak256(
-            abi.encodePacked(
-                "\x19Ethereum Signed Message:\n32",
-                messageHash
-            )
-        );
+            keccak256(
+                abi.encodePacked(
+                    "\x19Ethereum Signed Message:\n32",
+                    messageHash
+                )
+            );
     }
 
     function recover(bytes32 ethSignedMessageHash, bytes memory sig)
-    private
-    pure
-    returns (address)
+        private
+        pure
+        returns (address)
     {
         (uint8 v, bytes32 r, bytes32 s) = splitSignature(sig);
 
@@ -247,13 +248,13 @@ contract Bridge is Ownable, Pausable {
     }
 
     function splitSignature(bytes memory sig)
-    private
-    pure
-    returns (
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    )
+        private
+        pure
+        returns (
+            uint8 v,
+            bytes32 r,
+            bytes32 s
+        )
     {
         require(sig.length == 65);
 
@@ -267,9 +268,9 @@ contract Bridge is Ownable, Pausable {
     }
 
     function signaturesUnique(bytes[] memory signatures)
-    public
-    pure
-    returns (bool)
+        public
+        pure
+        returns (bool)
     {
         uint256 len = signatures.length;
         for (uint256 i = 0; i < len - 1; i++) {
@@ -283,9 +284,9 @@ contract Bridge is Ownable, Pausable {
     }
 
     function bytesEqual(bytes memory a, bytes memory b)
-    public
-    pure
-    returns (bool)
+        public
+        pure
+        returns (bool)
     {
         return (keccak256(a) == keccak256(b));
     }
