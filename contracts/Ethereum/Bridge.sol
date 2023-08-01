@@ -3,12 +3,11 @@
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 pragma solidity =0.8.17;
 
-contract Bridge is Ownable, Pausable , ReentrancyGuard{
+contract Bridge is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     event Deposit(address indexed sender, address token, uint256 amount);
@@ -18,6 +17,24 @@ contract Bridge is Ownable, Pausable , ReentrancyGuard{
         address token,
         uint256 amount,
         string message
+    );
+
+    event UpdateRequired(
+        address indexed sender,
+        uint256 oldQuantity,
+        uint256 newQuantity
+    );
+
+    event AddSigner(
+        address indexed sender,
+        address[] oldSigners,
+        address[] newSigners
+    );
+
+    event CancelSigner(
+        address indexed sender,
+        address[] oldSigners,
+        address[] newSigners
     );
 
     address public immutable WETH;
@@ -44,7 +61,7 @@ contract Bridge is Ownable, Pausable , ReentrancyGuard{
         address _WETH,
         address[] memory _signers,
         uint256 _required
-    ) payable ReentrancyGuard(){
+    ) payable ReentrancyGuard() {
         require(isContract(_WETH), "not a contract");
         require(_signers.length > 0, "signers required");
         require(
@@ -66,15 +83,7 @@ contract Bridge is Ownable, Pausable , ReentrancyGuard{
 
     receive() external payable {}
 
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    function unpause() external onlyOwner {
-        _unpause();
-    }
-
-    function depositETH() external payable checkAmount(msg.value) whenNotPaused {
+    function depositWrapper() external payable checkAmount(msg.value) {
         uint256 ETHAmount = msg.value;
 
         if (msg.value != 0) {
@@ -96,7 +105,6 @@ contract Bridge is Ownable, Pausable , ReentrancyGuard{
     function deposit(address token, uint256 amount)
         external
         checkAmount(amount)
-        whenNotPaused
     {
         require(isContract(token), "not a contract");
         require(
@@ -116,7 +124,7 @@ contract Bridge is Ownable, Pausable , ReentrancyGuard{
         bytes[] memory signatures,
         string memory txhash,
         uint256 amount
-    ) external nonReentrant() checkAmount(amount) checkSigLen(signatures) whenNotPaused {
+    ) external nonReentrant checkAmount(amount) checkSigLen(signatures) {
         require(isContract(token), "not a contract");
         require(!txHashs[txhash], "already withdraw");
         require(signaturesUnique(signatures), "duplicate signatures");
@@ -166,15 +174,22 @@ contract Bridge is Ownable, Pausable , ReentrancyGuard{
         require(!isContract(_signer), "not an account address");
         require(!isSigner[_signer], "signer is not unique");
 
+        address[] memory oldSigners = signers;
         isSigner[_signer] = true;
         signers.push(_signer);
+
+        emit AddSigner(msg.sender, oldSigners, signers);
     }
 
     function cancelSigner(address _signer) external onlyOwner {
         require(_signer != address(0), "0 address");
         require(!isContract(_signer), "not an account address");
         require(isSigner[_signer], "signer is not exist");
+        require(signers.length > 1, "at least one signer");
+
         delete isSigner[_signer];
+        address[] memory oldSigners = signers;
+
         for (uint256 i = 0; i < signers.length; i++) {
             if (signers[i] == _signer) {
                 signers[i] = signers[signers.length - 1];
@@ -182,6 +197,7 @@ contract Bridge is Ownable, Pausable , ReentrancyGuard{
                 break;
             }
         }
+        emit CancelSigner(msg.sender, oldSigners, signers);
     }
 
     function updateRequired(uint256 _required) external onlyOwner {
@@ -190,6 +206,7 @@ contract Bridge is Ownable, Pausable , ReentrancyGuard{
             "invalid required number of signers"
         );
         required = _required;
+        emit UpdateRequired(msg.sender, required, _required);
     }
 
     function getBalance() external view returns (uint256) {
